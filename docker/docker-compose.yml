@@ -5,7 +5,10 @@ services:
 
   catalog-service:
     depends_on:
-      - polar-postgres
+      catalog-postgres:
+        condition: service_started
+      config-service:
+        condition: service_healthy
     image: "ghcr.io/rajanjha786/catalog-service"
     container_name: "catalog-service"
     ports:
@@ -18,8 +21,8 @@ services:
       - BPL_DEBUG_ENABLED=true
       - BPL_DEBUG_PORT=8001
       - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://polar-postgres:5432/polardb_catalog
-      - SPRING_PROFILES_ACTIVE=testdata
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://catalog-postgres:5432/bookshop_catalog
+      - POLAR_TESTDATA_ENABLED=true
   
   config-service:
     image: "ghcr.io/rajanjha786/config-service"
@@ -33,15 +36,20 @@ services:
       # Buildpacks environment variable to enable debug through a socket on port 9888
       - BPL_DEBUG_ENABLED=true
       - BPL_DEBUG_PORT=9888
+    healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8888/ping"]
+        interval: 5s
+        timeout: 5s
+        retries: 5
 
   # Backing Services
 
-  polar-postgres:
+  catalog-postgres:
     image: "postgres:14.4"
-    container_name: "polar-postgres"
+    container_name: "catalog-postgres"
     ports:
       - 5432:5432
     environment:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=polardb_catalog
+      - POSTGRES_DB=bookshop_catalog
