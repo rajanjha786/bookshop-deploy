@@ -5,11 +5,11 @@ services:
 
   catalog-service:
     depends_on:
-      catalog-postgres:
+      bookshop-postgres:
         condition: service_started
       config-service:
-        condition: service_healthy
-    image: "ghcr.io/rajanjha786/catalog-service"
+        condition: service_started
+    image: "catalog-service"
     container_name: "catalog-service"
     ports:
       - 8000:8000
@@ -21,11 +21,33 @@ services:
       - BPL_DEBUG_ENABLED=true
       - BPL_DEBUG_PORT=8001
       - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://catalog-postgres:5432/bookshop_catalog
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://bookshop-postgres:5432/bookshop_catalog
       - POLAR_TESTDATA_ENABLED=true
   
+  order-service:
+    depends_on:
+      bookshop-postgres:
+        condition: service_started
+      config-service:
+        condition: service_started
+    image: "order-service"
+    container_name: "order-service"
+    ports:
+      - 9002:9002
+      - 9003:9003
+    environment:
+      # Buildpacks environment variable to configure the number of threads in memory calculation
+      - BPL_JVM_THREAD_COUNT=50
+      # Buildpacks environment variable to enable debug through a socket on port 8001
+      - BPL_DEBUG_ENABLED=true
+      - BPL_DEBUG_PORT=8001
+      - SPRING_CLOUD_CONFIG_URI=http://config-service:8888
+      - SPRING_R2DBC_URL=r2dbc:postgresql://bookshop-postgres:5432/bookshop_order
+      - SPRING_FLYWAY_URL=jdbc:postgresql://bookshop-postgres:5432/bookshop_order
+      - BOOKSHOP_CATALOG_SERVICE_URI=http://catalog-service:8000
+  
   config-service:
-    image: "ghcr.io/rajanjha786/config-service"
+    image: "config-service"
     container_name: "config-service"
     ports:
       - 8888:8888
@@ -36,20 +58,21 @@ services:
       # Buildpacks environment variable to enable debug through a socket on port 9888
       - BPL_DEBUG_ENABLED=true
       - BPL_DEBUG_PORT=9888
-    healthcheck:
-        test: ["CMD", "curl", "-f", "http://localhost:8888/ping"]
-        interval: 5s
-        timeout: 5s
-        retries: 5
+    #healthcheck:
+    #    test: ["CMD", "curl", "-f", "http://localhost:8888/ping"]
+    #    interval: 5s
+    #    timeout: 5s
+    #    retries: 5
 
   # Backing Services
 
-  catalog-postgres:
+  bookshop-postgres:
     image: "postgres:14.4"
-    container_name: "catalog-postgres"
+    container_name: "bookshop-postgres"
     ports:
       - 5432:5432
     environment:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=bookshop_catalog
+    volumes:
+        - ./postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
